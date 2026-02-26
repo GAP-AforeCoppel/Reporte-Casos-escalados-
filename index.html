@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reporte Escalamientos MAO</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chart.js DataLabels Plugin -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+    <!-- PapaParse para procesar CSV -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        corpBlue: '#002677', /* Azul Afore Coppel */
+                        corpYellow: '#FFC300', /* Amarillo Afore Coppel */
+                        corpLightBlue: '#0055A5',
+                        warningOrg: '#FF8A00',
+                        dangerRed: '#E63946'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .chart-container { position: relative; height: 250px; width: 100%; }
+        .loading-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255,255,255,0.9); display: flex; flex-direction: column;
+            align-items: center; justify-content: center; z-index: 1000;
+        }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans text-gray-800">
+
+    <!-- Pantalla de Carga -->
+    <div id="loader" class="loading-overlay">
+        <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-corpBlue mb-4"></div>
+        <p class="text-corpBlue font-bold">Procesando datos del archivo...</p>
+    </div>
+
+    <!-- Navbar -->
+    <nav class="bg-corpBlue text-white p-4 shadow-md border-b-4 border-corpYellow">
+        <div class="container mx-auto flex justify-between items-center">
+            <div class="flex items-center">
+                <!-- Logo Afore Coppel (Imagen subida) -->
+                <img src="image_f72661.png" alt="Logo Afore Coppel" class="h-10 sm:h-12 mr-4 bg-white px-3 py-1.5 rounded shadow-sm object-contain" onerror="this.style.display='none'">
+                
+                <h1 class="text-xl font-bold tracking-wide">Reporte Escalamientos MAO</h1>
+            </div>
+            <div class="hidden sm:block text-sm">
+                <span class="bg-corpYellow text-corpBlue px-3 py-1 rounded-full font-bold shadow-sm">
+                    <i class="fa-solid fa-database mr-2"></i>Datos en Vivo
+                </span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container mx-auto p-4 lg:p-6 mt-4">
+        
+        <div class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between">
+            <div>
+                <h2 class="text-2xl font-bold text-gray-800">Escalamientos Analizados - Enero 2026</h2>
+                <p class="text-gray-600 mt-1">Casos que pudieron resolverse en el primer contacto, reduciendo el tiempo de espera para el trabajador.</p>
+            </div>
+            <div class="mt-4 md:mt-0">
+                <button onclick="window.location.reload()" class="bg-white border border-gray-300 px-4 py-2 rounded shadow-sm hover:bg-gray-50 text-sm font-medium transition text-corpBlue">
+                    <i class="fa-solid fa-rotate mr-2"></i>Actualizar
+                </button>
+            </div>
+        </div>
+
+        <!-- Tarjeta KPI Total -->
+        <div class="bg-white rounded-lg shadow p-5 border-l-4 border-corpYellow flex items-center justify-between mb-6">
+            <div>
+                <p class="text-sm text-gray-500 font-semibold uppercase">Total de Casos Escalados</p>
+                <h3 id="kpi-total-casos" class="text-3xl font-bold text-corpBlue mt-1">0</h3>
+            </div>
+            <div class="p-4 bg-gray-50 rounded-full text-corpYellow text-2xl shadow-inner">
+                <i class="fa-solid fa-folder-open"></i>
+            </div>
+        </div>
+
+        <!-- Filtros de Búsqueda -->
+        <div class="bg-white rounded-lg shadow p-5 mb-8">
+            <h3 class="text-sm font-bold text-gray-800 mb-3"><i class="fa-solid fa-filter mr-2"></i>Filtros de Búsqueda</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Fecha</label>
+                    <select id="filter-fecha" onchange="applyFilters()" class="w-full border border-gray-300 rounded p-2 text-sm bg-gray-50 focus:outline-none focus:border-corpYellow focus:ring-1 focus:ring-corpYellow transition">
+                        <option value="ALL">Todas</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Categoría</label>
+                    <select id="filter-categoria" onchange="applyFilters()" class="w-full border border-gray-300 rounded p-2 text-sm bg-gray-50 focus:outline-none focus:border-corpYellow focus:ring-1 focus:ring-corpYellow transition">
+                        <option value="ALL">Todas</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Tipo</label>
+                    <select id="filter-tipo" onchange="applyFilters()" class="w-full border border-gray-300 rounded p-2 text-sm bg-gray-50 focus:outline-none focus:border-corpYellow focus:ring-1 focus:ring-corpYellow transition">
+                        <option value="ALL">Todos</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Subtipo</label>
+                    <select id="filter-subtipo" onchange="applyFilters()" class="w-full border border-gray-300 rounded p-2 text-sm bg-gray-50 focus:outline-none focus:border-corpYellow focus:ring-1 focus:ring-corpYellow transition">
+                        <option value="ALL">Todos</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Analista</label>
+                    <select id="filter-analista" onchange="applyFilters()" class="w-full border border-gray-300 rounded p-2 text-sm bg-gray-50 focus:outline-none focus:border-corpYellow focus:ring-1 focus:ring-corpYellow transition">
+                        <option value="ALL">Todos</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Nueva Gráfica Principal: Total de folios por Creado por -->
+        <div class="bg-white rounded-lg shadow p-5 mb-8">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b pb-2">
+                <h3 class="text-lg font-bold text-gray-800">Total de Folios Escalados por Asesor (Creado por)</h3>
+                <button id="toggleOrientationBtn" onclick="toggleChartOrientation()" class="mt-2 sm:mt-0 text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-1.5 px-3 rounded shadow-sm transition">
+                    <i class="fa-solid fa-chart-bar mr-1"></i> Ver Horizontal
+                </button>
+            </div>
+            <div class="overflow-auto w-full border border-gray-100 rounded bg-gray-50/50" style="max-height: 600px;">
+                <div id="asesores-chart-container" class="chart-container" style="height: 500px; width: 100%;">
+                    <canvas id="allAsesoresChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <div class="bg-white rounded-lg shadow p-5 flex flex-col lg:col-span-2">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b pb-2">
+                    <h3 class="text-lg font-bold text-gray-800">Distribución por Tipo y Subtipo</h3>
+                    <button id="toggleOrientationCatBtn" onclick="toggleCatChartOrientation()" class="mt-2 sm:mt-0 text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-1.5 px-3 rounded shadow-sm transition">
+                        <i class="fa-solid fa-chart-bar mr-1"></i> Ver Horizontal
+                    </button>
+                </div>
+                <div class="overflow-auto w-full border border-gray-100 rounded bg-gray-50/50 flex-none" style="max-height: 400px;">
+                    <div id="category-chart-container" class="chart-container" style="height: 350px; width: 100%;">
+                        <canvas id="categoryChart"></canvas>
+                    </div>
+                </div>
+                <!-- Sección dinámica para el resumen de asuntos -->
+                <div class="mt-4 pt-3 border-t border-gray-200 flex-1 flex flex-col min-h-[150px]">
+                    <h4 id="asunto-summary-title" class="text-sm font-bold text-corpBlue mb-2">
+                        <i class="fa-solid fa-list-check mr-1"></i> Top Asuntos (General)
+                    </h4>
+                    <div id="asunto-summary-content" class="overflow-y-auto pr-2 flex-1 max-h-[200px]">
+                        <!-- Lista dinámica -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow p-5 flex flex-col">
+                <h3 class="text-lg font-bold text-gray-800 mb-4 border-b pb-2"><i class="fa-solid fa-lightbulb text-warningOrg mr-2"></i>Acción Sugerida</h3>
+                <div id="accion-sugerida-content" class="space-y-3 max-h-[450px] overflow-y-auto pr-2 text-xs flex-1">
+                    <p class="text-gray-500 italic mt-2">Selecciona un bloque en la gráfica de Distribución para ver las acciones sugeridas de ese subtipo.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Data Table -->
+        <div class="bg-white rounded-lg shadow overflow-hidden mb-12">
+            <div class="px-5 py-4 border-b flex justify-between items-center bg-gray-50">
+                <h3 class="text-lg font-bold text-gray-800">Detalle de Folios Analizados</h3>
+                <span id="row-count" class="text-xs bg-gray-200 px-2 py-1 rounded text-gray-600 font-bold">0 registros</span>
+            </div>
+            <div class="overflow-x-auto max-h-[500px] overflow-y-auto">
+                <table class="w-full text-left text-sm whitespace-nowrap">
+                    <thead class="bg-gray-100 text-gray-600 uppercase text-[10px] sticky top-0 shadow-sm">
+                        <tr>
+                            <th class="px-4 py-3">No. Caso</th>
+                            <th class="px-4 py-3">Folio</th>
+                            <th class="px-4 py-3">Asesor</th>
+                            <th class="px-4 py-3">Tipo</th>
+                            <th class="px-4 py-3">Subtipo</th>
+                            <th class="px-4 py-3 text-center">Días</th>
+                            <th class="px-4 py-3">Estatus</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body" class="divide-y divide-gray-200">
+                        <!-- Datos cargados dinámicamente -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFGJVHhiORDbF42laIxcm_-nVewCzOvYWTgJDxO6DR0EHfJCJpnM3DjkuBnVBkrw/pub?gid=1920596975&single=true&output=csv";
+
+        let charts = {};
+        let globalData = [];
+        
+        // Variables para guardar los nombres exactos de las columnas detectadas
+        let colFecha, colCat, colTipo, colSub, colCreadoPor, colAsunto, colAccion, colCaso;
+        
+        let currentOrientation = 'x'; // 'x' = vertical (columnas), 'y' = horizontal (barras) para asesores
+        let currentCatOrientation = 'x'; // Orientación para gráfica de categorías
+
+        function toggleChartOrientation() {
+            currentOrientation = currentOrientation === 'x' ? 'y' : 'x';
+            
+            const btn = document.getElementById('toggleOrientationBtn');
+            if(currentOrientation === 'y') {
+                btn.innerHTML = '<i class="fa-solid fa-chart-column mr-1"></i> Ver Vertical';
+            } else {
+                btn.innerHTML = '<i class="fa-solid fa-chart-bar mr-1"></i> Ver Horizontal';
+            }
+            
+            applyFilters(); // Re-dibujar las gráficas para aplicar la orientación
+        }
+
+        function toggleCatChartOrientation() {
+            currentCatOrientation = currentCatOrientation === 'x' ? 'y' : 'x';
+            
+            const btn = document.getElementById('toggleOrientationCatBtn');
+            if(currentCatOrientation === 'y') {
+                btn.innerHTML = '<i class="fa-solid fa-chart-column mr-1"></i> Ver Vertical';
+            } else {
+                btn.innerHTML = '<i class="fa-solid fa-chart-bar mr-1"></i> Ver Horizontal';
+            }
+            
+            applyFilters(); // Re-dibujar
+        }
+
+        async function init() {
+            // Registrar plugin de etiquetas de datos globalmente
+            Chart.register(ChartDataLabels);
+            Chart.defaults.plugins.datalabels.display = false; // Apagar por defecto para las gráficas inferiores
+
+            try {
+                const response = await fetch(CSV_URL);
+                const csvText = await response.text();
+                
+                Papa.parse(csvText, {
+                    header: true,
+                    skipEmptyLines: true,
+                    transformHeader: function(h) {
+                        return h.trim(); // Limpiar espacios extra en los títulos
+                    },
+                    complete: function(results) {
+                        if(results.data.length > 0) {
+                            const headers = Object.keys(results.data[0]);
+                            // Detectar columnas dinámicamente (incluso si tienen acentos o texto extra)
+                            colFecha = headers.find(h => h.toLowerCase().includes('fecha')) || "Fecha";
+                            colCat = headers.find(h => h.toLowerCase().includes('categor')) || "Categoria";
+                            colTipo = headers.find(h => h.toLowerCase() === 'tipo' || h.toLowerCase().includes('tipo')) || "Tipo";
+                            colSub = headers.find(h => h.toLowerCase().includes('subtipo')) || "Subtipo";
+                            colCreadoPor = headers.find(h => h.toLowerCase().includes('creado')) || "Creado por";
+                            colAsunto = headers.find(h => h.toLowerCase().includes('asunto')) || "Asunto";
+                            colAccion = headers.find(h => h.toLowerCase().includes('recomendaci') || h.toLowerCase().includes('acci')) || "Recomendacion FCR";
+                            colCaso = headers.find(h => h.toLowerCase().includes('caso') && !h.toLowerCase().includes('estatus')) || "Caso";
+                        }
+
+                        // Filtrar filas vacías
+                        globalData = results.data.filter(row => row["Folio"] || row[colTipo] || row[colCreadoPor]);
+                        
+                        populateFilters(globalData);
+                        processDashboardData(globalData);
+                        document.getElementById('loader').classList.add('hidden');
+                    }
+                });
+            } catch (error) {
+                console.error("Error cargando el CSV:", error);
+                document.getElementById('loader').innerHTML = `<p class="text-red-600 p-4 text-center">Error al conectar con los datos. <br> Verifica la publicación del archivo.</p>`;
+            }
+        }
+
+        function populateFilters(data) {
+            const fechas = new Set();
+            const categorias = new Set();
+            const tipos = new Set();
+            const subtipos = new Set();
+            const analistas = new Set();
+
+            data.forEach(row => {
+                if(row[colFecha] && row[colFecha].trim() !== "") fechas.add(row[colFecha].trim());
+                if(row[colCat] && row[colCat].trim() !== "") categorias.add(row[colCat].trim());
+                if(row[colTipo] && row[colTipo].trim() !== "") tipos.add(row[colTipo].trim());
+                if(row[colSub] && row[colSub].trim() !== "") subtipos.add(row[colSub].trim());
+                if(row[colCreadoPor] && row[colCreadoPor].trim() !== "") analistas.add(row[colCreadoPor].trim());
+            });
+
+            fillSelect('filter-fecha', fechas);
+            fillSelect('filter-categoria', categorias);
+            fillSelect('filter-tipo', tipos);
+            fillSelect('filter-subtipo', subtipos);
+            fillSelect('filter-analista', analistas);
+        }
+
+        function fillSelect(id, setValues) {
+            const select = document.getElementById(id);
+            select.innerHTML = '<option value="ALL">Todos</option>';
+            
+            // Si no hay datos para este filtro, deshabilitarlo opcionalmente
+            if(setValues.size === 0) {
+                const opt = document.createElement('option');
+                opt.value = "ALL";
+                opt.textContent = "Sin datos";
+                select.appendChild(opt);
+                return;
+            }
+
+            Array.from(setValues).sort().forEach(val => {
+                const opt = document.createElement('option');
+                opt.value = val;
+                opt.textContent = val;
+                select.appendChild(opt);
+            });
+        }
+
+        function applyFilters() {
+            const fFecha = document.getElementById('filter-fecha').value;
+            const fCat = document.getElementById('filter-categoria').value;
+            const fTipo = document.getElementById('filter-tipo').value;
+            const fSub = document.getElementById('filter-subtipo').value;
+            const fAnalista = document.getElementById('filter-analista').value;
+
+            const filtered = globalData.filter(row => {
+                const matchFecha = fFecha === 'ALL' || (row[colFecha] && row[colFecha].trim() === fFecha);
+                const matchCat = fCat === 'ALL' || (row[colCat] && row[colCat].trim() === fCat);
+                const matchTipo = fTipo === 'ALL' || (row[colTipo] && row[colTipo].trim() === fTipo);
+                const matchSub = fSub === 'ALL' || (row[colSub] && row[colSub].trim() === fSub);
+                const matchAnalista = fAnalista === 'ALL' || (row[colCreadoPor] && row[colCreadoPor].trim() === fAnalista);
+                return matchFecha && matchCat && matchTipo && matchSub && matchAnalista;
+            });
+
+            processDashboardData(filtered);
+        }
+
+        function processDashboardData(data) {
+            window.currentFilteredData = data; // Guardar datos filtrados actuales de forma global
+            const total = data.length;
+
+            const kpiTotalCasos = document.getElementById('kpi-total-casos');
+            if(kpiTotalCasos) kpiTotalCasos.innerText = total;
+
+            const tipos = {};
+            const asesores = {};
+
+            const tableBody = document.getElementById('table-body');
+            tableBody.innerHTML = '';
+
+            data.forEach(row => {
+                // Procesar Días para la tabla (sin afectar gráfica eliminada)
+                const colDiasDetectada = Object.keys(row).find(k => k.toLowerCase().includes('dias') || k.toLowerCase().includes('días')) || "Dias";
+                const d = parseInt(row[colDiasDetectada]) || 0;
+
+                // Procesar Tipos y Subtipos
+                const t = row[colTipo] || "No Definido";
+                const s = row[colSub] || "No Definido";
+                if (!tipos[t]) tipos[t] = {};
+                tipos[t][s] = (tipos[t][s] || 0) + 1;
+
+                // Procesar Asesores
+                const colCreadoPor = Object.keys(row).find(k => k.toLowerCase().includes('creado')) || "Creado por";
+                const a = row[colCreadoPor] || "Desconocido";
+                asesores[a] = (asesores[a] || 0) + 1;
+
+                // Procesar Estatus
+                const colEstatus = Object.keys(row).find(k => k.toLowerCase().includes('estatus')) || "Estatus de caso";
+
+                // Construir Tabla
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-gray-50 transition";
+                tr.innerHTML = `
+                    <td class="px-4 py-3 font-medium text-gray-800">${row[colCaso] || '-'}</td>
+                    <td class="px-4 py-3 font-medium text-blue-600">${row["Folio"] || '-'}</td>
+                    <td class="px-4 py-3 truncate max-w-[150px]">${a}</td>
+                    <td class="px-4 py-3">${t}</td>
+                    <td class="px-4 py-3 text-xs text-gray-500">${row[colSub] || '-'}</td>
+                    <td class="px-4 py-3 text-center">
+                        <span class="${d > 2 ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'} px-2 py-0.5 rounded-full text-[10px] font-bold">
+                            ${d}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3">
+                        <span class="text-[10px] px-2 py-1 bg-green-100 text-green-800 rounded uppercase font-bold">${row[colEstatus] || 'CERRADO'}</span>
+                    </td>
+                `;
+                tableBody.appendChild(tr);
+            });
+
+            document.getElementById('row-count').innerText = `${total} registros`;
+
+            updateCharts(tipos, asesores);
+            mostrarResumenAsuntos('ALL', 'ALL'); // Inicializar resumen con todos los datos filtrados
+        }
+
+        function updateCharts(tiposData, asesoresData) {
+            // Estilos comunes
+            Chart.defaults.font.family = "'Inter', sans-serif";
+            Chart.defaults.color = '#6B7280';
+
+            // Destruir gráficas anteriores para evitar que se encimen al filtrar
+            if (charts.catChart) charts.catChart.destroy();
+            if (charts.ansChart) charts.ansChart.destroy();
+
+            // 1. Gráfico de Tipos e Subtipos (Barras Empilhadas)
+            const labelsTipos = Object.keys(tiposData);
+            const todosSubtipos = new Set();
+            
+            labelsTipos.forEach(t => {
+                Object.keys(tiposData[t]).forEach(s => todosSubtipos.add(s));
+            });
+
+            // Paleta actualizada con los colores de Afore Coppel
+            const palette = ['#002677', '#FFC300', '#0055A5', '#FFD633', '#1F2937', '#9CA3AF', '#3B82F6', '#F59E0B', '#10B981', '#6366F1'];
+            let colorIndex = 0;
+
+            const datasetsCat = Array.from(todosSubtipos).map(subtipo => {
+                const dataValues = labelsTipos.map(t => tiposData[t][subtipo] || 0);
+                const color = palette[colorIndex % palette.length];
+                colorIndex++;
+                return {
+                    label: subtipo,
+                    data: dataValues,
+                    backgroundColor: color,
+                    borderRadius: 2
+                };
+            });
+            
+            const ctxCat = document.getElementById('categoryChart').getContext('2d');
+            const isCatVertical = currentCatOrientation === 'x';
+            const catChartContainer = document.getElementById('category-chart-container');
+            
+            // Ajustar tamaño del contenedor con scroll para categorías
+            if (isCatVertical) {
+                catChartContainer.style.height = '350px';
+                catChartContainer.style.width = `${Math.max(400, labelsTipos.length * 50)}px`;
+            } else {
+                catChartContainer.style.width = '100%';
+                catChartContainer.style.height = `${Math.max(350, labelsTipos.length * 40)}px`;
+            }
+
+            const xCatAxisOpts = isCatVertical 
+                ? { stacked: true, ticks: { font: { size: 10 }, maxRotation: 90, minRotation: 90 }, grid: { display: false } } 
+                : { stacked: true, beginAtZero: true, ticks: { font: { size: 10 } } };
+                
+            const yCatAxisOpts = isCatVertical 
+                ? { stacked: true, beginAtZero: true, ticks: { font: { size: 10 } } } 
+                : { stacked: true, ticks: { font: { size: 10 } }, grid: { display: false } };
+
+            // Plugin personalizado para dibujar el total al final de la barra apilada
+            const stackedTotalsPlugin = {
+                id: 'stackedTotals',
+                afterDatasetsDraw: (chart) => {
+                    const { ctx, data } = chart;
+                    ctx.save();
+                    ctx.font = 'bold 11px Inter, sans-serif';
+                    ctx.fillStyle = '#1F2937'; // gray-800
+                    
+                    const isHorizontal = chart.options.indexAxis === 'y';
+                    ctx.textAlign = isHorizontal ? 'left' : 'center';
+                    ctx.textBaseline = isHorizontal ? 'middle' : 'bottom';
+
+                    for (let i = 0; i < data.labels.length; i++) {
+                        let total = 0;
+                        let maxPos = isHorizontal ? 0 : chart.chartArea.bottom;
+                        let elementFound = false;
+                        let xPos = 0;
+                        let yPos = 0;
+
+                        for (let j = 0; j < data.datasets.length; j++) {
+                            const meta = chart.getDatasetMeta(j);
+                            if (!meta.hidden) {
+                                const val = data.datasets[j].data[i] || 0;
+                                total += val;
+                                if (val > 0 && meta.data[i]) {
+                                    elementFound = true;
+                                    if (isHorizontal) {
+                                        maxPos = Math.max(maxPos, meta.data[i].x);
+                                        yPos = meta.data[i].y;
+                                    } else {
+                                        maxPos = Math.min(maxPos, meta.data[i].y);
+                                        xPos = meta.data[i].x;
+                                    }
+                                }
+                            }
+                        }
+
+                        if (total > 0 && elementFound) {
+                            if (isHorizontal) {
+                                ctx.fillText(total, maxPos + 6, yPos);
+                            } else {
+                                ctx.fillText(total, xPos, maxPos - 6);
+                            }
+                        }
+                    }
+                    ctx.restore();
+                }
+            };
+
+            charts.catChart = new Chart(ctxCat, {
+                type: 'bar',
+                plugins: [stackedTotalsPlugin],
+                data: {
+                    labels: labelsTipos,
+                    datasets: datasetsCat
+                },
+                options: {
+                    indexAxis: currentCatOrientation,
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    layout: {
+                        padding: {
+                            // Damos margen para que el número final no se corte con el borde del canvas
+                            top: isCatVertical ? 20 : 0,
+                            right: isCatVertical ? 0 : 30
+                        }
+                    },
+                    onHover: (event, chartElement) => {
+                        event.native.target.style.cursor = chartElement[0] ? 'pointer' : 'default';
+                    },
+                    onClick: (event, elements) => {
+                        if (elements.length > 0) {
+                            // Extraer el tipo y subtipo donde se hizo clic
+                            const datasetIndex = elements[0].datasetIndex;
+                            const dataIndex = elements[0].index;
+                            
+                            const clickedTipo = labelsTipos[dataIndex];
+                            const clickedSubtipo = datasetsCat[datasetIndex].label;
+                            
+                            mostrarResumenAsuntos(clickedTipo, clickedSubtipo);
+                        } else {
+                            // Si hace clic fuera de una barra, regresa al resumen global
+                            mostrarResumenAsuntos('ALL', 'ALL');
+                        }
+                    },
+                    plugins: {
+                        legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 9 } } },
+                        datalabels: { 
+                            display: function(context) {
+                                return context.dataset.data[context.dataIndex] > 0; // Ocultar los ceros para evitar saturación
+                            },
+                            color: '#ffffff', // Texto blanco para que resalte dentro del color de la barra
+                            font: { weight: 'bold', size: 9 }
+                        }
+                    },
+                    scales: {
+                        x: xCatAxisOpts,
+                        y: yCatAxisOpts
+                    }
+                }
+            });
+
+            // 2. Gráfica de Asesores (Todos)
+            const todosAsesores = Object.entries(asesoresData).sort((a,b) => b[1] - a[1]);
+            const ctxAns = document.getElementById('allAsesoresChart').getContext('2d');
+            
+            const isVertical = currentOrientation === 'x';
+            const chartContainer = document.getElementById('asesores-chart-container');
+            
+            // Ajustar tamaño del contenedor para mostrar todos los casos sin amontonarse (scroll dinámico)
+            if (isVertical) {
+                chartContainer.style.height = '500px';
+                // Calculamos 35px por cada asesor para garantizar espacio y lectura horizontal
+                chartContainer.style.width = `${Math.max(800, todosAsesores.length * 35)}px`;
+            } else {
+                chartContainer.style.width = '100%';
+                // Calculamos 30px por asesor de alto para visualización vertical
+                chartContainer.style.height = `${Math.max(500, todosAsesores.length * 30)}px`;
+            }
+
+            const xAxisOpts = isVertical 
+                ? { ticks: { font: { size: 10 }, maxRotation: 90, minRotation: 90 }, grid: { display: false } } 
+                : { beginAtZero: true, ticks: { font: { size: 10 } }, grace: '5%' };
+                
+            const yAxisOpts = isVertical 
+                ? { beginAtZero: true, ticks: { font: { size: 10 } }, grace: '10%' } 
+                : { ticks: { font: { size: 10 } }, grid: { display: false } };
+
+            charts.ansChart = new Chart(ctxAns, {
+                type: 'bar',
+                data: {
+                    labels: todosAsesores.map(x => x[0]),
+                    datasets: [{
+                        label: 'Total de Folios',
+                        data: todosAsesores.map(x => x[1]),
+                        backgroundColor: '#002677', // Actualizado a Azul Coppel
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    indexAxis: currentOrientation,
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { 
+                        legend: { display: false },
+                        datalabels: {
+                            display: true,
+                            color: '#4B5563',
+                            anchor: 'end',
+                            align: isVertical ? 'top' : 'right',
+                            font: { weight: 'bold', size: 10 }
+                        }
+                    },
+                    scales: { 
+                        x: xAxisOpts,
+                        y: yAxisOpts
+                    }
+                }
+            });
+        }
+
+        // Función dinámica para mostrar el detalle de asuntos
+        function mostrarResumenAsuntos(tipo, subtipo) {
+            const titleEl = document.getElementById('asunto-summary-title');
+            const contentEl = document.getElementById('asunto-summary-content');
+            
+            let filtered = window.currentFilteredData || [];
+            
+            // Validar si es global o un filtro específico por clic
+            if (tipo === 'ALL' && subtipo === 'ALL') {
+                titleEl.innerHTML = `<i class="fa-solid fa-list-check mr-1"></i> Top Asuntos (General)`;
+            } else {
+                titleEl.innerHTML = `<i class="fa-solid fa-filter mr-1"></i> Asuntos de: <span class="text-gray-800">${subtipo}</span> <br><span class="text-[10px] font-normal text-gray-500">Categoría: ${tipo}</span>`;
+                // Filtrar los datos para aislar solo ese subtipo
+                filtered = filtered.filter(row => row[colTipo] === tipo && row[colSub] === subtipo);
+            }
+            
+            // Contar la columna de Asuntos
+            const countAsuntos = {};
+            filtered.forEach(row => {
+                const a = row[colAsunto] || row["Asunto"] || "No Definido";
+                countAsuntos[a] = (countAsuntos[a] || 0) + 1;
+            });
+            
+            // Ordenar conteos de mayor a menor
+            const asuntosOrdenados = Object.entries(countAsuntos).sort((a, b) => b[1] - a[1]);
+            
+            if (asuntosOrdenados.length === 0) {
+                contentEl.innerHTML = '<p class="text-xs text-gray-500 italic">No hay asuntos para mostrar.</p>';
+                return;
+            }
+
+            let html = '<ul class="space-y-2 mt-2">';
+            asuntosOrdenados.forEach(([asunto, cantidad]) => {
+                html += `
+                    <li class="flex justify-between items-center text-xs border-b border-gray-100 pb-1 hover:bg-gray-50 transition p-1">
+                        <span class="text-gray-700 font-medium truncate pr-2" title="${asunto}">${asunto}</span>
+                        <span class="font-bold bg-yellow-100 text-corpBlue px-2 py-0.5 rounded-full shadow-sm">${cantidad}</span>
+                    </li>
+                `;
+            });
+            html += '</ul>';
+            
+            contentEl.innerHTML = html;
+
+            // --- LÓGICA DE ACCIÓN SUGERIDA ---
+            const accionEl = document.getElementById('accion-sugerida-content');
+            
+            if (tipo === 'ALL' && subtipo === 'ALL') {
+                accionEl.innerHTML = '<p class="text-gray-500 italic mt-2">Selecciona un bloque en la gráfica de Distribución (por Tipo y Subtipo) para ver las recomendaciones puntuales aplicables a esos casos.</p>';
+            } else {
+                // Extraer acciones únicas de los datos filtrados
+                const acciones = new Set();
+                filtered.forEach(row => {
+                    const acc = row[colAccion] || row["Recomendación FCR"] || row["Acción sugerida"] || "";
+                    // Evitar vacíos o celdas con puros guiones
+                    if (acc.trim() !== "" && acc.trim() !== "-" && acc.toLowerCase() !== "na" && acc.toLowerCase() !== "n/a") {
+                        acciones.add(acc.trim());
+                    }
+                });
+
+                if (acciones.size === 0) {
+                    accionEl.innerHTML = '<p class="text-gray-500 italic mt-2">No hay acciones sugeridas registradas para este subtipo.</p>';
+                } else {
+                    let htmlAcciones = '<div class="space-y-3 mt-2">';
+                    acciones.forEach(acc => {
+                        htmlAcciones += `
+                            <div class="p-3 bg-gray-50 border-l-4 border-corpYellow rounded shadow-sm">
+                                <p class="text-gray-800 font-medium leading-relaxed">${acc}</p>
+                            </div>
+                        `;
+                    });
+                    htmlAcciones += '</div>';
+                    accionEl.innerHTML = htmlAcciones;
+                }
+            }
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
