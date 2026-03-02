@@ -78,14 +78,45 @@
             </div>
         </div>
 
-        <!-- Tarjeta KPI Total -->
-        <div class="bg-white rounded-lg shadow p-5 border-l-4 border-corpYellow flex items-center justify-between mb-6">
-            <div>
-                <p class="text-sm text-gray-500 font-semibold uppercase">Total de Casos Escalados</p>
-                <h3 id="kpi-total-casos" class="text-3xl font-bold text-corpBlue mt-1">0</h3>
+        <!-- Tarjetas Superiores KPI -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <!-- Tarjeta KPI Total -->
+            <div class="bg-white rounded-lg shadow p-5 border-l-4 border-corpYellow flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-500 font-semibold uppercase">Total Casos Escalados</p>
+                    <h3 id="kpi-total-casos" class="text-4xl font-bold text-corpBlue mt-1">0</h3>
+                </div>
+                <div class="p-4 bg-gray-50 rounded-full text-corpYellow text-3xl shadow-inner">
+                    <i class="fa-solid fa-folder-open"></i>
+                </div>
             </div>
-            <div class="p-4 bg-gray-50 rounded-full text-corpYellow text-2xl shadow-inner">
-                <i class="fa-solid fa-folder-open"></i>
+
+            <!-- Tarjeta Insight FCR (Soluciones) Dinámica y Visual -->
+            <div class="bg-white rounded-lg shadow p-5 border-l-4 border-warningOrg lg:col-span-2 flex flex-col justify-center">
+                <div class="flex justify-between items-center mb-3 border-b pb-2">
+                    <div class="flex items-center gap-2">
+                        <h3 class="text-sm text-gray-800 font-bold">
+                            <i class="fa-solid fa-lightbulb text-warningOrg mr-1"></i> Oportunidad de Primer Contacto
+                        </h3>
+                        <span class="text-[10px] bg-warningOrg text-white px-2 py-0.5 rounded-full font-bold shadow-sm uppercase tracking-widest">Prevención</span>
+                    </div>
+                    <!-- Botón para limpiar filtro FCR -->
+                    <button id="btn-clear-fcr" onclick="setFcrFilter('ALL')" class="hidden text-[10px] bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded transition font-bold shadow-sm border border-gray-200">
+                        <i class="fa-solid fa-filter-circle-xmark text-red-500 mr-1"></i> Quitar Filtro
+                    </button>
+                </div>
+                
+                <div class="flex flex-col sm:flex-row items-center gap-6 flex-1 mt-2">
+                    <!-- Gráfica de Pastel -->
+                    <div class="w-full sm:w-1/3 relative flex justify-center items-center" style="height: 160px;">
+                        <canvas id="fcrChart"></canvas>
+                    </div>
+                    
+                    <!-- Leyenda interactiva -->
+                    <div id="fcr-solutions-container" class="w-full sm:w-2/3 space-y-1 max-h-[160px] overflow-y-auto pr-2">
+                        <p class="text-xs text-gray-400 italic">Calculando porcentajes...</p>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -184,9 +215,6 @@
             <div class="bg-white rounded-lg shadow p-5 flex flex-col lg:col-span-2">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b pb-2">
                     <h3 class="text-lg font-bold text-gray-800">Distribución por Tipo y Subtipo</h3>
-                    <button id="toggleOrientationCatBtn" onclick="toggleCatChartOrientation()" class="mt-2 sm:mt-0 text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-1.5 px-3 rounded shadow-sm transition">
-                        <i class="fa-solid fa-chart-bar mr-1"></i> Ver Horizontal
-                    </button>
                 </div>
                 <div class="overflow-auto w-full border border-gray-100 rounded bg-gray-50/50 flex-none" style="max-height: 400px;">
                     <div id="category-chart-container" class="chart-container" style="height: 350px; width: 100%;">
@@ -207,7 +235,7 @@
             <div class="bg-white rounded-lg shadow p-5 flex flex-col">
                 <h3 class="text-lg font-bold text-gray-800 mb-4 border-b pb-2"><i class="fa-solid fa-lightbulb text-warningOrg mr-2"></i>Acción Sugerida</h3>
                 <div id="accion-sugerida-content" class="space-y-3 max-h-[450px] overflow-y-auto pr-2 text-xs flex-1">
-                    <p class="text-gray-500 italic mt-2">Selecciona un bloque en la gráfica de Distribución para ver las acciones sugeridas de ese subtipo.</p>
+                    <p class="text-gray-500 italic mt-2">Selecciona un bloque en la gráfica de Distribución para ver las acciones sugeridas aplicables a esos casos.</p>
                 </div>
             </div>
         </div>
@@ -228,6 +256,7 @@
                             <th class="px-4 py-3">Analista</th>
                             <th class="px-4 py-3">Tipo</th>
                             <th class="px-4 py-3">Subtipo</th>
+                            <th class="px-4 py-3">Solución</th>
                             <th class="px-4 py-3">Estatus</th>
                         </tr>
                     </thead>
@@ -247,11 +276,12 @@
         
         // Variables para nombres exactos de columnas
         let colFecha, colCat, colTipo, colSub, colCreadoPor, colAsunto, colAccion, colCaso;
-        let colCiudad, colJefe; // Nuevas variables
+        let colCiudad, colJefe, colSolucion; // Nuevas variables
         
+        // Controladores de estado
         let currentOrientation = 'x'; 
-        let currentCatOrientation = 'x';
-        let currentMainChartView = 'analista'; // Controla qué métrica mostrar ('analista', 'jefe', 'ciudad')
+        let currentMainChartView = 'analista'; 
+        let currentFcrFilter = 'ALL'; // Controlador para el clic en la gráfica de dona
 
         function setMainChartView(view) {
             currentMainChartView = view;
@@ -286,19 +316,6 @@
             
             const btn = document.getElementById('toggleOrientationBtn');
             if(currentOrientation === 'y') {
-                btn.innerHTML = '<i class="fa-solid fa-chart-column mr-1"></i> Ver Vertical';
-            } else {
-                btn.innerHTML = '<i class="fa-solid fa-chart-bar mr-1"></i> Ver Horizontal';
-            }
-            
-            if(window.currentFilteredData) processDashboardData(window.currentFilteredData, true);
-        }
-
-        function toggleCatChartOrientation() {
-            currentCatOrientation = currentCatOrientation === 'x' ? 'y' : 'x';
-            
-            const btn = document.getElementById('toggleOrientationCatBtn');
-            if(currentCatOrientation === 'y') {
                 btn.innerHTML = '<i class="fa-solid fa-chart-column mr-1"></i> Ver Vertical';
             } else {
                 btn.innerHTML = '<i class="fa-solid fa-chart-bar mr-1"></i> Ver Horizontal';
@@ -374,7 +391,12 @@
                                 return low.includes('jefe') || low.includes('supervisor') || low.includes('lider') || low.includes('líder') || low.includes('gerente') || low.includes('coord');
                             }) || "Jefe";
 
-                            console.log("Columnas detectadas en el Excel -> Ciudad:", colCiudad, "| Jefe:", colJefe);
+                            // Aseguramos detectar la columna exacta "Solucion" o "Solución", evitando atrapar otras como "Fecha de solucion"
+                            colSolucion = headers.find(h => h.trim().toLowerCase() === 'solucion' || h.trim().toLowerCase() === 'solución') 
+                                       || headers.find(h => h.toLowerCase().includes('soluci') && !h.toLowerCase().includes('fecha')) 
+                                       || "Solucion";
+
+                            console.log("Columnas detectadas -> Ciudad:", colCiudad, "| Jefe:", colJefe, "| Solución:", colSolucion);
                         }
 
                         globalData = results.data.filter(row => row["Folio"] || row[colTipo] || row[colCreadoPor]).map(row => {
@@ -472,6 +494,13 @@
             const fSub = document.getElementById('filter-subtipo').value;
             const fAnalista = document.getElementById('filter-analista').value;
 
+            // Restablecer el filtro interactivo FCR al cambiar un filtro principal
+            currentFcrFilter = 'ALL';
+            const btnClear = document.getElementById('btn-clear-fcr');
+            if (btnClear) btnClear.classList.add('hidden');
+            const centerIcon = document.getElementById('center-icon-element');
+            if (centerIcon) { centerIcon.classList.remove('text-corpBlue'); centerIcon.classList.add('text-gray-200'); }
+
             const filtered = globalData.filter(row => {
                 const matchFecha = fFecha === 'ALL' || (row[colFecha] && row[colFecha].trim() === fFecha);
                 const matchSemana = fSemana === 'ALL' || row._semana === fSemana;
@@ -488,11 +517,193 @@
             processDashboardData(filtered, false);
         }
 
-        // isViewChange previene redibujar el resumen global de asuntos si solo cambiaste orientación o vista
+        // Dividimos el proceso: La dona se alimenta de "data", y el resto del tablero se alimenta de "subData" filtrada
         function processDashboardData(data, isViewChange = false) {
             window.currentFilteredData = data;
-            const total = data.length;
+            
+            // 1. Dibuja la sección FCR con los datos base
+            renderFcrChart(data);
 
+            // 2. Dibuja el resto del tablero (con filtro FCR si hay uno activo)
+            updateSubDashboard(isViewChange);
+        }
+
+        // Funciones para interactividad visual de FCR
+        function highlightFcrSlice(index) {
+            if (!charts.fcrChart) return;
+            charts.fcrChart.setActiveElements([{datasetIndex: 0, index: index}]);
+            charts.fcrChart.update();
+        }
+
+        function removeFcrHighlight() {
+            if (!charts.fcrChart) return;
+            charts.fcrChart.setActiveElements([]);
+            charts.fcrChart.update();
+        }
+
+        function setFcrFilter(solucion) {
+            currentFcrFilter = solucion;
+            
+            const btnClear = document.getElementById('btn-clear-fcr');
+            
+            if(solucion === 'ALL') {
+                if(btnClear) btnClear.classList.add('hidden');
+            } else {
+                if(btnClear) btnClear.classList.remove('hidden');
+            }
+            
+            // Redibujamos para aplicar estilos de "activo" en la lista de dona
+            renderFcrChart(window.currentFilteredData); 
+            // Filtramos la parte inferior del tablero
+            updateSubDashboard(false);
+        }
+
+        function renderFcrChart(data) {
+            const total = data.length;
+            let countSoluciones = {};
+            data.forEach(row => {
+                let sol = row[colSolucion] ? row[colSolucion].trim() : "";
+                if(sol && sol !== "-" && sol.toLowerCase() !== "n/a" && sol.toLowerCase() !== "na") {
+                    countSoluciones[sol] = (countSoluciones[sol] || 0) + 1;
+                }
+            });
+
+            // Mostrar TODAS las soluciones sin agrupar en "Otras"
+            const topSoluciones = Object.entries(countSoluciones).sort((a, b) => b[1] - a[1]);
+
+            const fcrContainer = document.getElementById('fcr-solutions-container');
+            
+            if (charts.fcrChart) charts.fcrChart.destroy();
+
+            if (fcrContainer) {
+                if (topSoluciones.length === 0 || total === 0) {
+                    fcrContainer.innerHTML = '<p class="text-xs text-gray-500 italic mt-4 text-center">No hay datos de solución registrados para esta selección.</p>';
+                } else {
+                    // Paleta de colores ampliada para soportar más soluciones sin repetir tan pronto
+                    const fcrColors = ['#002677', '#FFC300', '#0055A5', '#FF8A00', '#10B981', '#6366F1', '#EC4899', '#8B5CF6', '#14B8A6', '#F43F5E', '#9CA3AF'];
+                    
+                    let htmlFcr = '';
+                    topSoluciones.forEach((item, index) => {
+                        const solucion = item[0];
+                        const cantidad = item[1];
+                        const pct = Math.round((cantidad / total) * 100);
+                        const color = fcrColors[index % fcrColors.length];
+                        
+                        // Lógica de Highlight y Selección
+                        const isActive = currentFcrFilter === solucion;
+                        const bgClass = isActive ? 'bg-blue-50' : 'hover:bg-gray-50';
+                        const borderClass = isActive ? `border-l-4` : `border-l-4 border-transparent`;
+                        const dynamicBorderColor = isActive ? color : 'transparent';
+                        const textClass = isActive ? 'text-corpBlue font-bold' : 'text-gray-700';
+
+                        htmlFcr += `
+                            <div class="fcr-legend-item cursor-pointer flex items-center justify-between group py-1.5 pr-1.5 transition border-b border-gray-100 last:border-0 ${bgClass} ${borderClass}"
+                                 style="border-left-color: ${dynamicBorderColor};"
+                                 onmouseenter="highlightFcrSlice(${index})"
+                                 onmouseleave="removeFcrHighlight()"
+                                 onclick="setFcrFilter('${solucion.replace(/'/g, "\\'")}')">
+                                <div class="flex items-center gap-2 overflow-hidden flex-1 pl-1">
+                                    <span class="w-3 h-3 rounded-full flex-shrink-0 shadow-sm" style="background-color: ${color};"></span>
+                                    <span class="text-xs font-medium ${textClass} truncate" title="${solucion}">${solucion}</span>
+                                </div>
+                                <div class="flex items-center gap-3 ml-2 flex-shrink-0">
+                                    <span class="text-[10px] text-gray-400 font-medium w-12 text-right">${cantidad} casos</span>
+                                    <span class="text-sm font-bold w-10 text-right" style="color: ${color};">${pct}%</span>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    fcrContainer.innerHTML = htmlFcr;
+
+                    const fcrCtx = document.getElementById('fcrChart').getContext('2d');
+                    charts.fcrChart = new Chart(fcrCtx, {
+                        type: 'pie',
+                        data: {
+                            labels: topSoluciones.map(s => s[0]),
+                            datasets: [{
+                                data: topSoluciones.map(s => s[1]),
+                                backgroundColor: fcrColors,
+                                borderWidth: 2,
+                                borderColor: '#ffffff',
+                                hoverOffset: 6 
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                                    titleColor: '#1F2937',
+                                    bodyColor: '#4B5563',
+                                    borderColor: '#E5E7EB',
+                                    borderWidth: 1,
+                                    padding: 10,
+                                    boxPadding: 4,
+                                    callbacks: {
+                                        label: function(context) {
+                                            const val = context.raw;
+                                            const pct = Math.round((val / total) * 100);
+                                            return ` ${val} casos (${pct}%)`;
+                                        }
+                                    }
+                                },
+                                datalabels: { 
+                                    display: function(context) {
+                                        // Solo mostrar el número si es mayor al 5% para que no se amontonen textos en rebanadas diminutas
+                                        const val = context.dataset.data[context.dataIndex];
+                                        const pct = Math.round((val / total) * 100);
+                                        return pct > 5; 
+                                    },
+                                    color: '#ffffff',
+                                    font: { weight: 'bold', size: 12 },
+                                    formatter: function(value, context) {
+                                        const pct = Math.round((value / total) * 100);
+                                        return pct + '%';
+                                    },
+                                    textStrokeColor: 'rgba(0, 0, 0, 0.3)', // Borde sutil oscuro alrededor del texto blanco
+                                    textStrokeWidth: 3
+                                }
+                            },
+                            onHover: (event, elements) => {
+                                event.native.target.style.cursor = elements[0] ? 'pointer' : 'default';
+                                if (elements.length > 0) {
+                                    const idx = elements[0].index;
+                                    document.querySelectorAll('.fcr-legend-item').forEach((el, i) => {
+                                        if (i === idx) el.classList.add('bg-gray-100');
+                                        else el.classList.remove('bg-gray-100');
+                                    });
+                                } else {
+                                    document.querySelectorAll('.fcr-legend-item').forEach(el => el.classList.remove('bg-gray-100'));
+                                }
+                            },
+                            onClick: (event, elements) => {
+                                if (elements.length > 0) {
+                                    const idx = elements[0].index;
+                                    const clickedSolucion = charts.fcrChart.data.labels[idx];
+                                    setFcrFilter(clickedSolucion);
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+        }
+
+        // Sub-Tablero: Actualiza Total, Gráficas y Tablas aplicando el filtro FCR si existe
+        function updateSubDashboard(isViewChange = false) {
+            let data = window.currentFilteredData || [];
+            
+            // Aplicar el filtro FCR si está activo
+            if (currentFcrFilter !== 'ALL') {
+                data = data.filter(row => {
+                    let sol = row[colSolucion] ? row[colSolucion].trim() : "";
+                    return sol === currentFcrFilter;
+                });
+            }
+
+            const total = data.length;
             const kpiTotalCasos = document.getElementById('kpi-total-casos');
             if(kpiTotalCasos) kpiTotalCasos.innerText = total;
 
@@ -511,18 +722,27 @@
                 const a = row[colCreadoPor] || "Desconocido";
                 const c = row[colCiudad] || "Sin Ciudad";
                 const j = row[colJefe] || "Sin Jefe";
+                const sol = row[colSolucion] || "-"; // Obtenemos el dato de la Solución
                 const colEstatus = Object.keys(row).find(k => k.toLowerCase().includes('estatus')) || "Estatus de caso";
+                
+                const casoNum = row[colCaso] || '-';
+
+                // Lógica para resaltar el folio de ejemplo
+                const isEjemplo = casoNum.toString().includes('00710094');
+                const rowClass = isEjemplo ? "bg-yellow-50 hover:bg-yellow-100 transition border-l-4 border-warningOrg" : "hover:bg-gray-50 transition border-l-4 border-transparent";
+                const casoDisplay = isEjemplo ? `<span class="bg-warningOrg text-white text-[9px] px-1.5 py-0.5 rounded shadow-sm mr-1 font-bold tracking-wider">EJEMPLO</span> ${casoNum}` : casoNum;
 
                 // Construir fila de tabla con las columnas extra
                 const tr = document.createElement('tr');
-                tr.className = "hover:bg-gray-50 transition";
+                tr.className = rowClass;
                 tr.innerHTML = `
-                    <td class="px-4 py-3 font-medium text-gray-800">${row[colCaso] || '-'}</td>
+                    <td class="px-4 py-3 font-medium text-gray-800 whitespace-nowrap">${casoDisplay}</td>
                     <td class="px-4 py-3 text-gray-600 text-xs">${c}</td>
                     <td class="px-4 py-3 text-gray-600 text-xs">${j}</td>
                     <td class="px-4 py-3 truncate max-w-[150px] font-medium">${a}</td>
                     <td class="px-4 py-3">${t}</td>
                     <td class="px-4 py-3 text-xs text-gray-500">${row[colSub] || '-'}</td>
+                    <td class="px-4 py-3 text-xs text-gray-600 truncate max-w-[200px]" title="${sol}">${sol}</td>
                     <td class="px-4 py-3">
                         <span class="text-[10px] px-2 py-1 bg-green-100 text-green-800 rounded uppercase font-bold">${row[colEstatus] || 'CERRADO'}</span>
                     </td>
@@ -532,7 +752,6 @@
 
             document.getElementById('row-count').innerText = `${total} registros`;
 
-            // En lugar de pasar un mapa pre-hecho de analistas, le pasamos la data pura a la gráfica dinámica
             updateCharts(tipos, data);
             
             if (!isViewChange) {
@@ -563,19 +782,14 @@
             });
             
             const ctxCat = document.getElementById('categoryChart').getContext('2d');
-            const isCatVertical = currentCatOrientation === 'x';
             const catChartContainer = document.getElementById('category-chart-container');
             
-            if (isCatVertical) {
-                catChartContainer.style.height = '350px';
-                catChartContainer.style.width = `${Math.max(400, labelsTipos.length * 50)}px`;
-            } else {
-                catChartContainer.style.width = '100%';
-                catChartContainer.style.height = `${Math.max(350, labelsTipos.length * 40)}px`;
-            }
+            // Fija la gráfica siempre en vista horizontal
+            catChartContainer.style.width = '100%';
+            catChartContainer.style.height = `${Math.max(350, labelsTipos.length * 40)}px`;
 
-            const xCatAxisOpts = isCatVertical ? { stacked: true, ticks: { font: { size: 10 }, maxRotation: 90, minRotation: 90 }, grid: { display: false } } : { stacked: true, beginAtZero: true, ticks: { font: { size: 10 } } };
-            const yCatAxisOpts = isCatVertical ? { stacked: true, beginAtZero: true, ticks: { font: { size: 10 } } } : { stacked: true, ticks: { font: { size: 10 } }, grid: { display: false } };
+            const xCatAxisOpts = { stacked: true, beginAtZero: true, ticks: { font: { size: 10 } } };
+            const yCatAxisOpts = { stacked: true, ticks: { font: { size: 10 } }, grid: { display: false } };
 
             const stackedTotalsPlugin = {
                 id: 'stackedTotals',
@@ -609,8 +823,8 @@
             charts.catChart = new Chart(ctxCat, {
                 type: 'bar', plugins: [stackedTotalsPlugin], data: { labels: labelsTipos, datasets: datasetsCat },
                 options: {
-                    indexAxis: currentCatOrientation, responsive: true, maintainAspectRatio: false,
-                    layout: { padding: { top: isCatVertical ? 20 : 0, right: isCatVertical ? 0 : 30 } },
+                    indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                    layout: { padding: { top: 0, right: 30 } },
                     onHover: (event, chartElement) => { event.native.target.style.cursor = chartElement[0] ? 'pointer' : 'default'; },
                     onClick: (event, elements) => {
                         if (elements.length > 0) {
@@ -742,6 +956,14 @@
             const contentEl = document.getElementById('asunto-summary-content');
             let filtered = window.currentFilteredData || [];
             
+            // AGREGADO: Aplicar también el filtro interactivo de Prevención (FCR) si está activo
+            if (currentFcrFilter !== 'ALL') {
+                filtered = filtered.filter(row => {
+                    let sol = row[colSolucion] ? row[colSolucion].trim() : "";
+                    return sol === currentFcrFilter;
+                });
+            }
+            
             if (tipo === 'ALL' && subtipo === 'ALL') {
                 titleEl.innerHTML = `<i class="fa-solid fa-list-check mr-1"></i> Top Asuntos (General)`;
             } else {
@@ -777,24 +999,34 @@
             // LÓGICA DE ACCIÓN SUGERIDA
             const accionEl = document.getElementById('accion-sugerida-content');
             if (tipo === 'ALL' && subtipo === 'ALL') {
-                accionEl.innerHTML = '<p class="text-gray-500 italic mt-2">Selecciona un bloque en la gráfica de Distribución (por Tipo y Subtipo) para ver las recomendaciones puntuales aplicables a esos casos.</p>';
+                accionEl.innerHTML = '<p class="text-gray-500 italic mt-2">Selecciona un bloque en la gráfica de Distribución (por Tipo y Subtipo) para ver las acciones sugeridas aplicables a esos casos.</p>';
             } else {
-                const acciones = new Set();
+                const accionesMap = new Map();
                 filtered.forEach(row => {
-                    const acc = row[colAccion] || row["Recomendación FCR"] || row["Acción sugerida"] || "";
+                    let acc = row[colAccion] || row["Recomendación FCR"] || row["Acción sugerida"] || "";
                     if (acc.trim() !== "" && acc.trim() !== "-" && acc.toLowerCase() !== "na" && acc.toLowerCase() !== "n/a") {
-                        acciones.add(acc.trim());
+                        let cleanAcc = acc.trim();
+                        // Quitar comillas al inicio y al final que puedan venir del CSV
+                        cleanAcc = cleanAcc.replace(/^["']+|["']+$/g, '').trim();
+                        
+                        // Crear una llave normalizada para la comparación (sin importar mayúsculas o espacios extra)
+                        let keyCompare = cleanAcc.toLowerCase().replace(/\s+/g, ' ');
+                        
+                        // Si esta acción normalizada no existe en nuestro mapa, la agregamos
+                        if (!accionesMap.has(keyCompare)) {
+                            accionesMap.set(keyCompare, cleanAcc);
+                        }
                     }
                 });
 
-                if (acciones.size === 0) {
+                if (accionesMap.size === 0) {
                     accionEl.innerHTML = '<p class="text-gray-500 italic mt-2">No hay acciones sugeridas registradas para este subtipo.</p>';
                 } else {
                     let htmlAcciones = '<div class="space-y-3 mt-2">';
-                    acciones.forEach(acc => {
+                    accionesMap.forEach((accText) => {
                         htmlAcciones += `
                             <div class="p-3 bg-gray-50 border-l-4 border-corpYellow rounded shadow-sm">
-                                <p class="text-gray-800 font-medium leading-relaxed">${acc}</p>
+                                <p class="text-gray-800 font-medium leading-relaxed">${accText}</p>
                             </div>
                         `;
                     });
